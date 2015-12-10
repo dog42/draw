@@ -238,8 +238,17 @@ body {
 .buttonicon-select {
   background-image: url('../../static/img/select.png');
 }
+.buttonicon-text {
+  background-image: url('../../static/img/text.png');
+}
 .buttonicon-zero {
   background-image: url('../../static/img/zero.png');
+}
+.buttonicon-scale {
+  background-image: url('../../static/img/scale.png');
+}
+.buttonicon-fit {
+  background-image: url('../../static/img/fit.png');
 }
 .buttonicon-upload {
   background-image: url('../../static/img/upload.png');
@@ -490,3 +499,9 @@ input[type=checkbox] {
   background-color:#fff;
 }
 
+.textEditor {
+  position: absolute;
+  z-index: 1;
+  min-width: 20px;
+  background-color: rgba(255, 255, 255, 0.8);
+}
