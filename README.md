@@ -1,13 +1,21 @@
-![alt text](https://f.cloud.github.com/assets/220864/730169/feb98294-e24b-11e2-903d-b3cbc68f3a48.gif "Action Video")
-
-## An intuitive collaborative drawing web based tool.
+# draw
+An intuitive collaborative drawing web based tool.
 Collaborative real-time drawing, sketching & painting
 
-Fast, light weight, easy to maintain.  Try the [demo] (http://draw.etherpad.org).
+Fast, light weight, easy to maintain.
+
+![Demo GIF](https://cloud.githubusercontent.com/assets/1755886/11715310/ccc7080e-9f38-11e5-834e-4937e89801f6.gif)
+
+
+Use
+----
+- The canvas can be scaled using either the mouse wheel, or by a two-finger pinch gesture
+- The canvas can be panned by using either middle-click and drag (only on Chrome), CTRL + left-click and drag, or a two-finger drag
+- To create a named canvas goto <url>/d/<name>, eg http://0.0.0.0:9002/d/coolstuff
 
 Demo
 ----
-[Etherdraw Demo site](http://draw.etherpad.org)
+[draw demo site](http://draw.meldce.com)
 
 Installation
 ------------
@@ -27,7 +35,3 @@ Requirements
 License
 -------
 Apache 2 License
-
-Donations
----------
-Donate to the [Etherpad Foundation] (http://etherpad.org/#links)
