@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <title>Draw by johnyma22</title>
+    <title>Draw by theelectricwiz</title>
 
     <link rel="stylesheet" href="stylesheets/styles.css">
-    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
@@ -18,45 +18,73 @@
         <h1>Draw</h1>
         <p>A real time collaborative drawing tool using nodejs, socket.io &amp; paper.js</p>
 
-        <p class="view"><a href="https://github.com/johnyma22/draw">View the Project on GitHub <small>johnyma22/draw</small></a></p>
+        <p class="view"><a href="https://github.com/theelectricwiz/draw">View the Project on GitHub <small>theelectricwiz/draw</small></a></p>
 
 
         <ul>
-          <li><a href="https://github.com/johnyma22/draw/zipball/master">Download <strong>ZIP File</strong></a></li>
-          <li><a href="https://github.com/johnyma22/draw/tarball/master">Download <strong>TAR Ball</strong></a></li>
-          <li><a href="https://github.com/johnyma22/draw">View On <strong>GitHub</strong></a></li>
+          <li><a href="https://github.com/theelectricwiz/draw/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/theelectricwiz/draw/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/theelectricwiz/draw">View On <strong>GitHub</strong></a></li>
         </ul>
       </header>
       <section>
-        <h3>Welcome to GitHub Pages.</h3>
+        <h1>
+<a id="draw" class="anchor" href="#draw" aria-hidden="true"><span class="octicon octicon-link"></span></a>draw</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<p>An intuitive collaborative drawing web based tool.
+Collaborative real-time drawing, sketching &amp; painting</p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
-</code></pre>
+<p>Fast, light weight, easy to maintain.</p>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<p><img src="https://cloud.githubusercontent.com/assets/1755886/11715310/ccc7080e-9f38-11e5-834e-4937e89801f6.gif" alt="Demo GIF"></p>
 
-<h3>Designer Templates</h3>
+<h2>
+<a id="use" class="anchor" href="#use" aria-hidden="true"><span class="octicon octicon-link"></span></a>Use</h2>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<ul>
+<li>The canvas can be scaled using either the mouse wheel, or by a two-finger pinch gesture</li>
+<li>The canvas can be panned by using either middle-click and drag (only on Chrome), CTRL + left-click and drag, or a two-finger drag</li>
+<li>To create a named canvas goto /d/, eg <a href="http://0.0.0.0:9002/d/coolstuff">http://0.0.0.0:9002/d/coolstuff</a>
+</li>
+</ul>
 
-<h3>Rather Drive Stick?</h3>
+<h2>
+<a id="demo" class="anchor" href="#demo" aria-hidden="true"><span class="octicon octicon-link"></span></a>Demo</h2>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p><a href="http://draw.meldce.com">draw demo site</a></p>
 
-<h3>Authors and Contributors</h3>
+<h2>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h2>
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<ol>
+<li>Install Requirements. <code>sudo apt-get update &amp;&amp; sudo apt-get install libcairo2-dev libjpeg8-dev libpango1.0-dev libgif-dev build-essential g++</code>
+</li>
+<li>Install EtherDraw <code>git clone git://github.com/JohnMcLear/draw.git</code>
+</li>
+<li>Enter the EtherDraw folder <code>cd draw</code>
+</li>
+<li>Run EtherDraw <code>bin/run.sh</code> </li>
+<li>Make a drawing!  Open your browser and visit <code>http://127.0.0.1:9002</code>
+</li>
+</ol>
 
-<h3>Support or Contact</h3>
+<h2>
+<a id="requirements" class="anchor" href="#requirements" aria-hidden="true"><span class="octicon octicon-link"></span></a>Requirements</h2>
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<ul>
+<li><a href="http://nodejs.org/">NodeJS</a></li>
+<li>Lib Cairo</li>
+<li>Lib Jpeg</li>
+<li>Lib Gif</li>
+</ul>
+
+<h2>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>License</h2>
+
+<p>Apache 2 License</p>
       </section>
       <footer>
-        <p>This project is maintained by <a href="https://github.com/johnyma22">johnyma22</a></p>
+        <p>This project is maintained by <a href="https://github.com/theelectricwiz">theelectricwiz</a></p>
         <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
       </footer>
     </div>
