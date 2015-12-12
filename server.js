@@ -13,7 +13,9 @@ var settings = require('./src/util/Settings.js'),
     async = require('async'),
     fs = require('fs'),
     http = require('http'),
-    https = require('https');
+    https = require('https'),
+    argv,
+    removeTimeouts = {};
 
 /** 
  * SSL Logic and Server bindings
@@ -53,6 +55,7 @@ app.use(express.session({secret: 'secret', key: 'express.sid'}));
 // Development mode setting
 app.configure('development', function(){
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
+    argv = require('minimist')(process.argv.slice(2));
 });
 
 // Production mode setting
@@ -97,9 +100,24 @@ console.log("Access Etherdraw at http://"+settings.ip+":"+settings.port);
 
 // SOCKET IO
 io.sockets.on('connection', function (socket) {
+  var room;
   socket.on('disconnect', function () {
     console.log("Socket disconnected");
-    // TODO: We should have logic here to remove a drawing from memory as we did previously
+    /* Start a timeout to delete the room if it remains unused for the given
+     * time
+     */
+    if (argv && argv.remove-unused) {
+      var rooms = socket.adapter.rooms[room];
+      // Check if were the last one connected to the room
+      if (Object.keys(rooms).length === 0) {
+        // Create the timeout to remove the room
+        if (removeTimeouts[room]) {
+          clearTimeout(removeTimeouts[room]);
+        }
+        removeTimeouts[room] = setTimeout(removeRoom.bind(null, room),
+            argv.remove-unused);
+      }
+    }
   });
 
   // EVENT: User stops drawing something
@@ -136,7 +154,7 @@ io.sockets.on('connection', function (socket) {
 
   // User joins a room
   socket.on('subscribe', function(data) {
-    subscribe(socket, data);
+    room = subscribe(socket, data);
   });
 
   // User clears canvas
@@ -186,10 +204,11 @@ function subscribe(socket, data) {
   // Subscribe the client to the room
   socket.join(room);
 
-  // If the close timer is set, cancel it
-  // if (closeTimer[room]) {
-  //  clearTimeout(closeTimer[room]);
-  // }
+  // If there is a remove timeout activate, remove it
+  if (removeTimeouts[room]) {
+    clearTimeout(removeTimeouts[room]);
+    delete removeTimeouts[room];
+  }
 
   // Create Paperjs instance for this room if it doesn't exist
   var project = projects.projects[room];
@@ -212,6 +231,31 @@ function subscribe(socket, data) {
   var rooms = socket.adapter.rooms[room]; 
   var roomUserCount = Object.keys(rooms).length;
   io.to(room).emit('user:connect', roomUserCount);
+
+  return room;
+}
+
+/**
+ * Removes a room from the database
+ *
+ * @param {string} Room to remove
+ */
+function removeRoom(room) {
+  // Double check there is no one else connected to it
+  var rooms = socket.adapter.rooms[room], count;
+  if ((count = Object.keys(rooms).length) !== 0) {
+    console.log('Removing of room %s aborted, %d still in the room', room,
+        count);
+    return;
+  }
+  
+  // Delete the room from the database
+  var project = projects[room].project;
+  // All projects share one View, calling remove() on one project destroys the View
+  // for all projects. Set to false first.
+  project.view = false;
+  project.remove();
+  delete projects[room];
 }
 
 // Send current project to new client
