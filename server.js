@@ -55,7 +55,39 @@ app.use(express.session({secret: 'secret', key: 'express.sid'}));
 // Development mode setting
 app.configure('development', function(){
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
-    argv = require('minimist')(process.argv.slice(2));
+  argv = require('minimist')(process.argv.slice(2));
+  
+  if (argv.removeUnused) {
+    // Parse value
+    var parse;
+    if (typeof argv.removeUnused === 'string') {
+    console.log(typeof argv.removeUnused);
+      if ((parse 
+          = argv.removeUnused.match(/^([0-9](\.[0-9])?)(min|hr|day)?$/)) !== null) {
+        console.log(parse);
+        argv.removeUnused = parseFloat(parse[1]);
+        if (parse[3]) {
+          var mul = 60;
+
+          switch (parse[3]) {
+            case 'day':
+              mul *= 24;
+            case 'hr':
+              mul *= 60;
+            case 'min':
+          }
+          argv.removeUnused *= mul;
+        }
+      } else {
+        throw new Error('Invalid value for --removeUnused: '
+            + argv.removeUnused);
+      }
+    }
+    console.log('Unused rooms will be deleted after %s seconds', argv.removeUnused);
+
+    // Change to milliseconds
+    argv.removeUnused *= 1000;
+  }
 });
 
 // Production mode setting
@@ -92,109 +124,137 @@ app.get('/tests/frontend', function (req, res) {
 // Static files IE Javascript and CSS
 app.use("/static", express.static(__dirname + '/src/static'));
 
-// LISTEN FOR REQUESTS
-var io = socket.listen(server);
-io.sockets.setMaxListeners(0);
+var io;
 
-console.log("Access Etherdraw at http://"+settings.ip+":"+settings.port);
+// Initialise the database, then start the server
+db.init(function(err) {
+  if(err) {
+    throw err;
+  }
 
-// SOCKET IO
-io.sockets.on('connection', function (socket) {
-  var room;
-  socket.on('disconnect', function () {
-    console.log("Socket disconnected");
-    /* Start a timeout to delete the room if it remains unused for the given
-     * time
-     */
-    if (argv && argv.remove-unused) {
-      var rooms = socket.adapter.rooms[room];
-      // Check if were the last one connected to the room
-      if (Object.keys(rooms).length === 0) {
-        // Create the timeout to remove the room
-        if (removeTimeouts[room]) {
-          clearTimeout(removeTimeouts[room]);
+  // LISTEN FOR REQUESTS
+  io = socket.listen(server);
+  io.sockets.setMaxListeners(0);
+
+  console.log("Access Etherdraw at http://"+settings.ip+":"+settings.port);
+
+  // Create remove timeouts for existing rooms if removeUnused is set
+  if (argv.removeUnused) {
+    // Get current rooms
+    db.rooms(function(err, keys) {
+      var k;
+      for (k in keys) {
+        console.log('Removing room %s in %d seconds', keys[k],
+            argv.removeUnused);
+        if (removeTimeouts[keys[k]] === undefined) {
+          removeTimeouts = setTimeout(removeRoom.bind(this, 
+              io.sockets, keys[k]), argv.removeUnused);
         }
-        removeTimeouts[room] = setTimeout(removeRoom.bind(null, room),
-            argv.remove-unused);
       }
-    }
-  });
+    });
+  }
 
-  // EVENT: User stops drawing something
-  // Having room as a parameter is not good for secure rooms
-  socket.on('draw:progress', function (room, uid, co_ordinates) {
-    if (!projects.projects[room] || !projects.projects[room].project) {
-      loadError(socket);
-      return;
-    }
-    io.in(room).emit('draw:progress', uid, co_ordinates);
-    draw.progressExternalPath(room, JSON.parse(co_ordinates), uid);
-  });
+  // SOCKET IO
+  io.sockets.on('connection', function (socket) {
+    var room;
+    socket.on('disconnect', function () {
+      console.log("Socket disconnected");
+      /* Start a timeout to delete the room if it remains unused for the given
+       * time
+       */
+      if (argv && argv.removeUnused) {
+        var rooms;
+        if (rooms = socket.adapter.rooms[room]) {
+          // Check if were the last one connected to the room
+          if (Object.keys(rooms).length === 0) {
+            // Create the timeout to remove the room
+            if (removeTimeouts[room]) {
+              clearTimeout(removeTimeouts[room]);
+            }
+            console.log('starting remove timeout for room %s', room);
+            removeTimeouts[room] = setTimeout(removeRoom.bind(this, 
+                socket, room), argv.removeUnused);
+          }
+        }
+      }
+    });
 
-  // EVENT: User stops drawing something
-  // Having room as a parameter is not good for secure rooms
-  socket.on('draw:end', function (room, uid, co_ordinates) {
-    if (!projects.projects[room] || !projects.projects[room].project) {
-      loadError(socket);
-      return;
-    }
-    io.in(room).emit('draw:end', uid, co_ordinates);
-    draw.endExternalPath(room, JSON.parse(co_ordinates), uid);
-  });
+    // EVENT: User stops drawing something
+    // Having room as a parameter is not good for secure rooms
+    socket.on('draw:progress', function (room, uid, co_ordinates) {
+      if (!projects.projects[room] || !projects.projects[room].project) {
+        loadError(socket);
+        return;
+      }
+      io.in(room).emit('draw:progress', uid, co_ordinates);
+      draw.progressExternalPath(room, JSON.parse(co_ordinates), uid);
+    });
 
-  // EVENT: User draws a textbox
-  socket.on('draw:textbox', function (room, uid, textbox) {
-    if (!projects.projects[room] || !projects.projects[room].project) {
-      loadError(socket);
-      return;
-    }
-    io.in(room).emit('draw:textbox', uid, textbox);
-    draw.addTextbox(room, JSON.parse(textbox));
-  });
+    // EVENT: User stops drawing something
+    // Having room as a parameter is not good for secure rooms
+    socket.on('draw:end', function (room, uid, co_ordinates) {
+      if (!projects.projects[room] || !projects.projects[room].project) {
+        loadError(socket);
+        return;
+      }
+      io.in(room).emit('draw:end', uid, co_ordinates);
+      draw.endExternalPath(room, JSON.parse(co_ordinates), uid);
+    });
 
-  // User joins a room
-  socket.on('subscribe', function(data) {
-    room = subscribe(socket, data);
-  });
+    // EVENT: User draws a textbox
+    socket.on('draw:textbox', function (room, uid, textbox) {
+      if (!projects.projects[room] || !projects.projects[room].project) {
+        loadError(socket);
+        return;
+      }
+      io.in(room).emit('draw:textbox', uid, textbox);
+      draw.addTextbox(room, JSON.parse(textbox));
+    });
 
-  // User clears canvas
-  socket.on('canvas:clear', function(room) {
-    if (!projects.projects[room] || !projects.projects[room].project) {
-      loadError(socket);
-      return;
-    }
-    draw.clearCanvas(room);
-    io.in(room).emit('canvas:clear');
-  });
+    // User joins a room
+    socket.on('subscribe', function(data) {
+      room = subscribe(socket, data);
+    });
 
-  // User removes an item
-  socket.on('item:remove', function(room, uid, itemName) {
-    draw.removeItem(room, uid, itemName);
-    io.sockets.in(room).emit('item:remove', uid, itemName);
-  });
+    // User clears canvas
+    socket.on('canvas:clear', function(room) {
+      if (!projects.projects[room] || !projects.projects[room].project) {
+        loadError(socket);
+        return;
+      }
+      draw.clearCanvas(room);
+      io.in(room).emit('canvas:clear');
+    });
 
-  // User moves one or more items on their canvas - progress
-  socket.on('item:move:progress', function(room, uid, itemNames, delta) {
-    draw.moveItemsProgress(room, uid, itemNames, delta);
-    if (itemNames) {
-      io.sockets.in(room).emit('item:move', uid, itemNames, delta);
-    }
-  });
+    // User removes an item
+    socket.on('item:remove', function(room, uid, itemName) {
+      draw.removeItem(room, uid, itemName);
+      io.sockets.in(room).emit('item:remove', uid, itemName);
+    });
 
-  // User moves one or more items on their canvas - end
-  socket.on('item:move:end', function(room, uid, itemNames, delta) {
-    draw.moveItemsEnd(room, uid, itemNames, delta);
-    if (itemNames) {
-      io.sockets.in(room).emit('item:move', uid, itemNames, delta);
-    }
-  });
+    // User moves one or more items on their canvas - progress
+    socket.on('item:move:progress', function(room, uid, itemNames, delta) {
+      draw.moveItemsProgress(room, uid, itemNames, delta);
+      if (itemNames) {
+        io.sockets.in(room).emit('item:move', uid, itemNames, delta);
+      }
+    });
 
-  // User adds a raster image
-  socket.on('image:add', function(room, uid, data, position, name) {
-    draw.addImage(room, uid, data, position, name);
-    io.sockets.in(room).emit('image:add', uid, data, position, name);
-  });
+    // User moves one or more items on their canvas - end
+    socket.on('item:move:end', function(room, uid, itemNames, delta) {
+      draw.moveItemsEnd(room, uid, itemNames, delta);
+      if (itemNames) {
+        io.sockets.in(room).emit('item:move', uid, itemNames, delta);
+      }
+    });
 
+    // User adds a raster image
+    socket.on('image:add', function(room, uid, data, position, name) {
+      draw.addImage(room, uid, data, position, name);
+      io.sockets.in(room).emit('image:add', uid, data, position, name);
+    });
+
+  });
 });
 
 // Subscribe a client to a room
@@ -213,7 +273,7 @@ function subscribe(socket, data) {
   // Create Paperjs instance for this room if it doesn't exist
   var project = projects.projects[room];
   if (!project) {
-    console.log("made room");
+    console.log('Made room %s', room);
     projects.projects[room] = {};
     // Use the view from the default project. This project is the default
     // one created when paper is instantiated. Nothing is ever written to
@@ -240,22 +300,29 @@ function subscribe(socket, data) {
  *
  * @param {string} Room to remove
  */
-function removeRoom(room) {
+function removeRoom(socket, room) {
   // Double check there is no one else connected to it
   var rooms = socket.adapter.rooms[room], count;
-  if ((count = Object.keys(rooms).length) !== 0) {
+  if (rooms && (count = Object.keys(rooms).length) !== 0) {
     console.log('Removing of room %s aborted, %d still in the room', room,
         count);
     return;
   }
   
-  // Delete the room from the database
-  var project = projects[room].project;
-  // All projects share one View, calling remove() on one project destroys the View
-  // for all projects. Set to false first.
-  project.view = false;
-  project.remove();
-  delete projects[room];
+  if (projects.projects[room]) {
+    // Delete the room from the database
+    var project = projects.projects[room].project;
+    // All projects share one View, calling remove() on one project destroys the View
+    // for all projects. Set to false first.
+    project.view = false;
+    project.remove();
+    delete projects[room];
+    console.log('Deleted project for %s', room);
+  }
+
+  db.remove(room, function() {
+    console.log('Room %s removed from database', room);
+  });
 }
 
 // Send current project to new client
