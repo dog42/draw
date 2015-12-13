@@ -64,7 +64,6 @@ app.configure('development', function(){
     console.log(typeof argv.removeUnused);
       if ((parse 
           = argv.removeUnused.match(/^([0-9](\.[0-9])?)(min|hr|day)?$/)) !== null) {
-        console.log(parse);
         argv.removeUnused = parseFloat(parse[1]);
         if (parse[3]) {
           var mul = 60;
@@ -84,9 +83,6 @@ app.configure('development', function(){
       }
     }
     console.log('Unused rooms will be deleted after %s seconds', argv.removeUnused);
-
-    // Change to milliseconds
-    argv.removeUnused *= 1000;
   }
 });
 
@@ -148,7 +144,7 @@ db.init(function(err) {
             argv.removeUnused);
         if (removeTimeouts[keys[k]] === undefined) {
           removeTimeouts = setTimeout(removeRoom.bind(this, 
-              io.sockets, keys[k]), argv.removeUnused);
+              io.sockets, keys[k]), argv.removeUnused * 1000);
         }
       }
     });
@@ -171,9 +167,10 @@ db.init(function(err) {
             if (removeTimeouts[room]) {
               clearTimeout(removeTimeouts[room]);
             }
-            console.log('starting remove timeout for room %s', room);
+             console.log('Removing room %s in %d seconds', room,
+                argv.removeUnused);
             removeTimeouts[room] = setTimeout(removeRoom.bind(this, 
-                socket, room), argv.removeUnused);
+                socket, room), argv.removeUnused * 1000);
           }
         }
       }
