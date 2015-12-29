@@ -56,15 +56,18 @@ app.use(express.session({secret: 'secret', key: 'express.sid'}));
 app.configure('development', function(){
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
   argv = require('minimist')(process.argv.slice(2));
+
+  settings.removeUnused = (argv.removeUnused ? argv.removeUnused
+    : (settings.removeUnused ? settings.removeUnused : undefined));
   
-  if (argv.removeUnused) {
+  if (settings.removeUnused) {
     // Parse value
     var parse;
-    if (typeof argv.removeUnused === 'string') {
-    console.log(typeof argv.removeUnused);
+    if (typeof settings.removeUnused === 'string') {
+    console.log(typeof settings.removeUnused);
       if ((parse 
-          = argv.removeUnused.match(/^([0-9]+(\.[0-9]+)?)(min|hr|day)?$/)) !== null) {
-        argv.removeUnused = parseFloat(parse[1]);
+          = settings.removeUnused.match(/^([0-9]+(\.[0-9]+)?)(min|hr|day)?$/)) !== null) {
+        settings.removeUnused = parseFloat(parse[1]);
         if (parse[3]) {
           var mul = 60;
 
@@ -75,14 +78,14 @@ app.configure('development', function(){
               mul *= 60;
             case 'min':
           }
-          argv.removeUnused *= mul;
+          settings.removeUnused *= mul;
         }
       } else {
         throw new Error('Invalid value for --removeUnused: '
-            + argv.removeUnused);
+            + settings.removeUnused);
       }
     }
-    console.log('Unused rooms will be deleted after %s seconds', argv.removeUnused);
+    console.log('Unused rooms will be deleted after %s seconds', settings.removeUnused);
   }
 });
 
@@ -135,16 +138,16 @@ db.init(function(err) {
   console.log("Access Etherdraw at http://"+settings.ip+":"+settings.port);
 
   // Create remove timeouts for existing rooms if removeUnused is set
-  if (argv.removeUnused) {
+  if (settings.removeUnused) {
     // Get current rooms
     db.rooms(function(err, keys) {
       var k;
       for (k in keys) {
         console.log('Removing room %s in %d seconds', keys[k],
-            argv.removeUnused);
+            settings.removeUnused);
         if (removeTimeouts[keys[k]] === undefined) {
           removeTimeouts = setTimeout(removeRoom.bind(this, 
-              io.sockets, keys[k]), argv.removeUnused * 1000);
+              io.sockets, keys[k]), settings.removeUnused * 1000);
         }
       }
     });
@@ -158,7 +161,7 @@ db.init(function(err) {
       /* Start a timeout to delete the room if it remains unused for the given
        * time
        */
-      if (argv && argv.removeUnused) {
+      if (argv && settings.removeUnused) {
         var rooms;
         if (rooms = socket.adapter.rooms[room]) {
           // Check if were the last one connected to the room
@@ -168,9 +171,9 @@ db.init(function(err) {
               clearTimeout(removeTimeouts[room]);
             }
              console.log('Removing room %s in %d seconds', room,
-                argv.removeUnused);
+                settings.removeUnused);
             removeTimeouts[room] = setTimeout(removeRoom.bind(this, 
-                socket, room), argv.removeUnused * 1000);
+                socket, room), settings.removeUnused * 1000);
           }
         }
       }
