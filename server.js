@@ -33,7 +33,7 @@ if(settings.ssl){
   var server = https.createServer(options, app).listen(settings.ip, settings.port);
 }else{
   var app = express();
-  var server = app.listen(settings.port);
+  var server = app.listen(settings.port, settings.ip);
 }
 
 /** 
@@ -63,7 +63,7 @@ app.configure('development', function(){
     if (typeof argv.removeUnused === 'string') {
     console.log(typeof argv.removeUnused);
       if ((parse 
-          = argv.removeUnused.match(/^([0-9](\.[0-9])?)(min|hr|day)?$/)) !== null) {
+          = argv.removeUnused.match(/^([0-9]+(\.[0-9]+)?)(min|hr|day)?$/)) !== null) {
         argv.removeUnused = parseFloat(parse[1]);
         if (parse[3]) {
           var mul = 60;
