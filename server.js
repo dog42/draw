@@ -316,7 +316,7 @@ function removeRoom(socket, room) {
     // for all projects. Set to false first.
     project.view = false;
     project.remove();
-    delete projects[room];
+    delete projects.projects[room];
     console.log('Deleted project for %s', room);
   }
 
