@@ -736,6 +736,7 @@ function onMouseDown(event) {
   // Will also handle scaling using pinch gestures
   if (event.event.button == 1 
       || (event.event.button == 0 && event.event.ctrlKey)
+      || (event.event.button == 0 && activeTool == 'cursor')
       || (event.event.touches && event.event.touches.length == 2)) {
     previousPoint = getEventPoint(event.event, 'client');
     var canvas = $('#myCanvas');
@@ -844,6 +845,7 @@ function onMouseDrag(event) {
    */
   if (event.event.button == 1 
       || (event.event.button == 0 && event.event.ctrlKey)
+      || (event.event.button == 0 && activeTool == 'cursor')
       || (event.event.touches && event.event.touches.length == 2)) {
     // Calculate our own delta as the event delta is relative to the canvas
     var point = getEventPoint(event.event, 'client');
@@ -975,6 +977,11 @@ function onMouseUp(event) {
       || (event.event.button == 0 && event.event.ctrlKey)
       || (event.event.touches && fingers == 2)) {
     $('#myCanvas').css('cursor', 'pointer');
+    return;
+  }
+  
+  if (event.event.button == 0 && activeTool == 'cursor') {
+    $('#myCanvas').css('cursor', 'default');
     return;
   }
 
@@ -1227,6 +1234,17 @@ $('#exportPNG').on('click', function() {
   exportPNG();
 });
 
+$('#cursorTool').on('click', function() {
+  $('#editbar > ul > li > a').css({
+    background: ""
+  }); // remove the backgrounds from other buttons
+  $('#cursorTool > a').css({
+    background: "#eee"
+  }); // set the selecttool css to show it as active
+  activeTool = "cursor";
+  $('#myCanvas').css('cursor', 'default');
+  paper.project.activeLayer.selected = false;
+});
 $('#pencilTool').on('click', function() {
   $('#editbar > ul > li > a').css({
     background: ""
