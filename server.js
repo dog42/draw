@@ -43,6 +43,10 @@ var clientSettings = {
   "tool": settings.tool
 }
 
+if (settings.editPassword) {
+  clientSettings.protectedEdit = true;
+}
+
 // Config Express to server static files from /
 app.configure(function(){
   app.use(express.static(__dirname + '/'));

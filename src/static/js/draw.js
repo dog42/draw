@@ -5,11 +5,38 @@ tool.maxDistance = 45;
 
 var room = /.*\/([^?]+)/.exec(window.location.pathname)[1];
 
+var protection = false;
+var authorized = false;
+
 function pickColor(color) {
   $('#color').val(color);
   var rgb = hexToRgb(color);
   $('#activeColorSwatch').css('background-color', 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')');
   update_active_color();
+}
+
+function changeActiveTool(tool, notProtectedTool) {
+  if (!notProtectedTool && (protection && !authorized)) {
+    newTool = tool;
+    promptForPassword();
+    return;
+  }
+
+  if (tool) {
+    $('#editbar > ul > li > a').css({
+      background: ""
+    }); // remove the backgrounds from other buttons
+    $('#' + tool + 'Tool > a').css({
+      background: "#eee"
+    }); // set the selecttool css to show it as active
+    activeTool = tool;
+  }
+
+  return true;
+}
+
+function promptForPassword() {
+  $('#userSettings').fadeIn();
 }
 
 /**
@@ -1235,57 +1262,33 @@ $('#exportPNG').on('click', function() {
 });
 
 $('#cursorTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#cursorTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "cursor";
-  $('#myCanvas').css('cursor', 'default');
-  paper.project.activeLayer.selected = false;
+  if (changeActiveTool('cursor', true)) {
+    $('#myCanvas').css('cursor', 'default');
+    paper.project.activeLayer.selected = false;
+  }
 });
 $('#pencilTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#pencilTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "pencil";
-  $('#myCanvas').css('cursor', 'pointer');
-  paper.project.activeLayer.selected = false;
+  if (changeActiveTool('pencil')) {
+    $('#myCanvas').css('cursor', 'pointer');
+    paper.project.activeLayer.selected = false;
+  }
 });
 $('#drawTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#drawTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "draw";
-  $('#myCanvas').css('cursor', 'pointer');
-  paper.project.activeLayer.selected = false;
+  if (changeActiveTool('draw')) {
+    $('#myCanvas').css('cursor', 'pointer');
+    paper.project.activeLayer.selected = false;
+  }
 });
 $('#selectTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#selectTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "select";
-  $('#myCanvas').css('cursor', 'default');
+  if (changeActiveTool('select')) {
+    $('#myCanvas').css('cursor', 'default');
+  }
 });
 $('#textTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#textTool > a').css({
-    background: "#eee"
-  }); // set the texttool css to show it as active
-  activeTool = "text";
-  $('#myCanvas').css('cursor', 'crosshair');
+  if (changeActiveTool('text')) {
+    $('#myCanvas').css('cursor', 'crosshair');
+    paper.project.activeLayer.selected = false;
+  }
 });
 
 $('#zeroTool').on('click', function() {
@@ -1596,6 +1599,14 @@ progress_external_path = function(points, artist) {
 
 };
 
+/**
+ * Check if we are authenticated to make edits, if not
+ */
+function enableProtection() {
+  protection = true;
+  changeActiveTool('cursor', true);
+}
+
 function processSettings(settings) {
 
   $.each(settings, function(k, v) {
@@ -1603,6 +1614,13 @@ function processSettings(settings) {
     // Handle tool changes
     if (k === "tool") {
       $('.buttonicon-' + v).click();
+    }
+
+    // Add edit protection
+    if (k === "protectedEdit") {
+      if (v) {
+        enableProtection();
+      }
     }
 
   })
