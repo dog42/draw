@@ -7,6 +7,7 @@ var room = /.*\/([^?]+)/.exec(window.location.pathname)[1];
 
 var protection = false;
 var authorized = false;
+var newTool = null;
 
 function pickColor(color) {
   $('#color').val(color);
@@ -37,6 +38,23 @@ function changeActiveTool(tool, notProtectedTool) {
 
 function promptForPassword() {
   $('#userSettings').fadeIn();
+}
+
+function checkPassword() {
+  if (!protection || authorized) {
+    $('#userSettings').hide();
+  } else {
+    $('#passwordError').text('');
+    // Get password
+    var password = $('#password').val();
+
+    if (!password) {
+      $('#passwordError').text('Please enter a password.');
+    } else {
+      // Send password to be verified
+      socket.emit('user:authenticate:edit', room, uid, password);
+    }
+  }
 }
 
 /**
@@ -1309,6 +1327,8 @@ $('#uploadImage').on('click', function() {
   $('#imageInput').click();
 });
 
+$('#submitPassword').on('click', checkPassword);
+
 function clearCanvas() {
   // Remove all but the active layer
   if (project.layers.length > 1) {
@@ -1454,6 +1474,22 @@ socket.on('user:connect', function(user_count) {
 
 socket.on('user:disconnect', function(user_count) {
   update_user_count(user_count);
+});
+
+socket.on('user:authenticate:edit', function(error, token) {
+  if (error) {
+    $('#passwordError').text(error);
+  } else {
+    $('#password').val('');
+    $('#passwordError').text('');
+    authorized = true;
+    $('#userSettings').hide();
+
+    if (newTool) {
+      changeActiveTool(newTool);
+      newTool = null;
+    }
+  }
 });
 
 socket.on('project:load', function(json) {

@@ -220,6 +220,30 @@ db.init(function(err) {
       room = subscribe(socket, data);
     });
 
+    // User tries to authenticate
+    socket.on('user:authenticate:edit', function(room, uid, password) {
+      if (settings.editPassword) {
+        var roomPassword;
+        if (typeof settings.editPassword === 'string') {
+          roomPassword = settings.editPassword;
+        } else if (typeof settings.editPassword === 'object') {
+          roomPassword = settings.editPassword[room];
+        }
+
+        if (roomPassword) {
+          if (roomPassword !== password) {
+            socket.emit('user:authenticate:edit', 'Incorrect password.');
+            return;
+          } else {
+            socket.emit('user:authenticate:edit', null, true);
+            return;
+          }
+        }
+      }
+
+      socket.emit('user:authenticate:edit', null, true);
+    });
+
     // User clears canvas
     socket.on('canvas:clear', function(room) {
       if (!projects.projects[room] || !projects.projects[room].project) {
