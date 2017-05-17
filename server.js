@@ -331,6 +331,11 @@ function subscribe(socket, data) {
     delete removeTimeouts[room];
   }
 
+  if (typeof settings.editPassword === 'object') {
+    clientSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
+  }
+  socket.emit('settings', clientSettings);
+
   // Create Paperjs instance for this room if it doesn't exist
   var project = projects.projects[room];
   if (!project) {
@@ -396,10 +401,6 @@ function loadFromMemory(room, socket) {
   socket.emit('loading:start');
   var value = project.exportJSON();
   socket.emit('project:load', {project: value});
-  if (typeof settings.editPassword === 'object') {
-    clientSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
-  }
-  socket.emit('settings', clientSettings);
   socket.emit('loading:end');
 }
 
