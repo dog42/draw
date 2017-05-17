@@ -43,7 +43,7 @@ var clientSettings = {
   "tool": settings.tool
 }
 
-if (settings.editPassword) {
+if (typeof settings.editPassword === 'string') {
   clientSettings.protectedEdit = true;
 }
 
@@ -396,6 +396,9 @@ function loadFromMemory(room, socket) {
   socket.emit('loading:start');
   var value = project.exportJSON();
   socket.emit('project:load', {project: value});
+  if (typeof settings.editPassword === 'object') {
+    clientSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
+  }
   socket.emit('settings', clientSettings);
   socket.emit('loading:end');
 }
