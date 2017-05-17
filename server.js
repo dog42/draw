@@ -159,7 +159,7 @@ db.init(function(err) {
 
   // SOCKET IO
   io.sockets.on('connection', function (socket) {
-    var room;
+    var room, authorized;
     socket.on('disconnect', function () {
       console.log("Socket disconnected");
       /* Start a timeout to delete the room if it remains unused for the given
@@ -190,6 +190,10 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       io.in(room).emit('draw:progress', uid, co_ordinates);
       draw.progressExternalPath(room, JSON.parse(co_ordinates), uid);
     });
@@ -201,6 +205,10 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       io.in(room).emit('draw:end', uid, co_ordinates);
       draw.endExternalPath(room, JSON.parse(co_ordinates), uid);
     });
@@ -209,6 +217,10 @@ db.init(function(err) {
     socket.on('draw:textbox', function (room, uid, textbox) {
       if (!projects.projects[room] || !projects.projects[room].project) {
         loadError(socket);
+        return;
+      }
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
         return;
       }
       io.in(room).emit('draw:textbox', uid, textbox);
@@ -236,6 +248,7 @@ db.init(function(err) {
             return;
           } else {
             socket.emit('user:authenticate:edit', null, true);
+            authorized = true;
             return;
           }
         }
@@ -250,18 +263,30 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       draw.clearCanvas(room);
       io.in(room).emit('canvas:clear');
     });
 
     // User removes an item
     socket.on('item:remove', function(room, uid, itemName) {
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       draw.removeItem(room, uid, itemName);
       io.sockets.in(room).emit('item:remove', uid, itemName);
     });
 
     // User moves one or more items on their canvas - progress
     socket.on('item:move:progress', function(room, uid, itemNames, delta) {
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       draw.moveItemsProgress(room, uid, itemNames, delta);
       if (itemNames) {
         io.sockets.in(room).emit('item:move', uid, itemNames, delta);
@@ -270,6 +295,10 @@ db.init(function(err) {
 
     // User moves one or more items on their canvas - end
     socket.on('item:move:end', function(room, uid, itemNames, delta) {
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       draw.moveItemsEnd(room, uid, itemNames, delta);
       if (itemNames) {
         io.sockets.in(room).emit('item:move', uid, itemNames, delta);
@@ -278,6 +307,10 @@ db.init(function(err) {
 
     // User adds a raster image
     socket.on('image:add', function(room, uid, data, position, name) {
+      if (requireAuthentication(room) && !authorized) {
+        editError(socket);
+        return;
+      }
       draw.addImage(room, uid, data, position, name);
       io.sockets.in(room).emit('image:add', uid, data, position, name);
     });
@@ -371,3 +404,18 @@ function loadError(socket) {
   socket.emit('project:load:error');
 }
 
+function editError(socket) {
+  socket.emit('project:edit:error');
+}
+
+function requireAuthentication(room) {
+  if (settings.editPassword) {
+    if (typeof settings.editPassword === 'object') {
+      return (typeof settings.editPassword[room] !== 'undefined');
+    }
+
+    return true;
+  }
+
+  return false;
+}

@@ -16,10 +16,18 @@ function pickColor(color) {
   update_active_color();
 }
 
-function changeActiveTool(tool, notProtectedTool) {
-  if (!notProtectedTool && (protection && !authorized)) {
-    newTool = tool;
+function isAuthorized() {
+  if (protection && !authorized) {
     promptForPassword();
+    return false;
+  }
+
+  return true;
+}
+
+function changeActiveTool(tool, notProtectedTool) {
+  if (!notProtectedTool && !isAuthorized()) {
+    newTool = tool;
     return;
   }
 
@@ -718,10 +726,12 @@ $('#colorToggle').on('click', function() {
 });
 
 $('#clearImage').click(function() {
-  var p = confirm("Are you sure you want to clear the drawing for everyone?");
-  if (p) {
-    clearCanvas();
-    socket.emit('canvas:clear', room);
+  if (isAuthorized()) {
+    var p = confirm("Are you sure you want to clear the drawing for everyone?");
+    if (p) {
+      clearCanvas();
+      socket.emit('canvas:clear', room);
+    }
   }
 });
 
@@ -1269,8 +1279,10 @@ $('#usericon').on('click', function() {
   $('#mycolorpicker').fadeToggle();
 });
 $('#clearCanvas').on('click', function() {
-  clearCanvas();
-  socket.emit('canvas:clear', room);
+  if (isAuthorized()) {
+    clearCanvas();
+    socket.emit('canvas:clear', room);
+  }
 });
 $('#exportSVG').on('click', function() {
   exportSVG();
@@ -1324,7 +1336,9 @@ $('#fitTool').on('click', function() {
 });
 
 $('#uploadImage').on('click', function() {
-  $('#imageInput').click();
+  if (isAuthorized()) {
+    $('#imageInput').click();
+  }
 });
 
 $('#submitPassword').on('click', checkPassword);
