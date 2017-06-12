@@ -1696,7 +1696,7 @@ function processSettings(settings) {
 // Periodically save drawing
 setInterval(function(){
   saveDrawing();
-}, 1000);
+}, 10000);
 
 function saveDrawing(){
   var canvas = document.getElementById('myCanvas');
