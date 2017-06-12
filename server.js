@@ -15,7 +15,8 @@ var settings = require('./src/util/Settings.js'),
     http = require('http'),
     https = require('https'),
     argv,
-    removeTimeouts = {};
+    removeTimeouts = {},
+    tokens = {};
 
 /** 
  * SSL Logic and Server bindings
@@ -67,31 +68,69 @@ app.configure('development', function(){
   if (settings.removeUnused) {
     // Parse value
     var parse;
-    if (typeof settings.removeUnused === 'string') {
-    console.log(typeof settings.removeUnused);
-      if ((parse 
-          = settings.removeUnused.match(/^([0-9]+(\.[0-9]+)?)(min|hr|day)?$/)) !== null) {
-        settings.removeUnused = parseFloat(parse[1]);
+    try {
+      settings.removeUnused = parseTimeSetting(settings.removeUnused);
+      console.log('get value', settings.removeUnused);
+    } catch(error) {
+      throw new Error('Invalid value for --removeUnused: '
+          + settings.removeUnused);
+    }
+    console.log('Unused rooms will be deleted after %s seconds', settings.removeUnused);
+  }
+
+  if (settings.authenticationTimeout) {
+    try {
+      settings.authenticationTimeout = parseTimeSetting(settings.authenticationTimeout);
+    } catch(error) {
+      throw new Error('Invalid value authenticationTimeout: '
+          + settings.authenticationTimeout);
+    }
+
+    console.log('Users will be logged out after %s seconds', settings.removeUnused);
+    // Check for an remove old tokens every minute
+    setInterval(removeOldTokens, 60000);
+  }
+});
+
+function parseTimeSetting(value) {
+  console.log('parseTimeSetting', value);
+  if (typeof value === 'number') {
+    return value;
+  } else if (typeof value === 'string') {
+    var number = Number(value);
+
+    if (!isNaN(number)) {
+      return number;
+    }
+
+    if ((parse 
+        = value.match(/^([0-9]+(\.[0-9]+)?)(mins?|h(ou)?rs?|days?)?$/)) !== null) {
+      number = Number(parse[1]);
+      if (!isNaN(number)) {
         if (parse[3]) {
           var mul = 60;
 
           switch (parse[3]) {
+            case 'days':
             case 'day':
               mul *= 24;
+            case 'hours':
+            case 'hour':
+            case 'hrs':
             case 'hr':
               mul *= 60;
+            case 'mins':
             case 'min':
           }
-          settings.removeUnused *= mul;
+          number *= mul;
         }
-      } else {
-        throw new Error('Invalid value for --removeUnused: '
-            + settings.removeUnused);
+         return number;
       }
     }
-    console.log('Unused rooms will be deleted after %s seconds', settings.removeUnused);
   }
-});
+
+  throw new Error('Invalid value given: ' + value);
+}
 
 // Production mode setting
 app.configure('production', function(){
@@ -159,7 +198,8 @@ db.init(function(err) {
 
   // SOCKET IO
   io.sockets.on('connection', function (socket) {
-    var room, authorized;
+    var room, token;
+
     socket.on('disconnect', function () {
       console.log("Socket disconnected");
       /* Start a timeout to delete the room if it remains unused for the given
@@ -190,8 +230,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       io.in(room).emit('draw:progress', uid, co_ordinates);
@@ -205,8 +245,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       io.in(room).emit('draw:end', uid, co_ordinates);
@@ -219,8 +259,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       io.in(room).emit('draw:textbox', uid, textbox);
@@ -229,11 +269,56 @@ db.init(function(err) {
 
     // User joins a room
     socket.on('subscribe', function(data) {
-      room = subscribe(socket, data);
+      room = data.room;
+
+      // Subscribe the client to the room
+      socket.join(room);
+
+      // If there is a remove timeout activate, remove it
+      if (removeTimeouts[room]) {
+        clearTimeout(removeTimeouts[room]);
+        delete removeTimeouts[room];
+      }
+
+      var roomSettings = Object.assign({}, clientSettings);
+
+      if (typeof settings.editPassword === 'object') {
+        roomSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
+      }
+
+      // Check authentication token
+      if (data.token && tokens[data.token] && (typeof settings.editPassword !== 'object'
+            || tokens[data.token].rooms.indexOf(room) !== -1)) {
+        roomSettings.authenticated = true;
+        token = data.token;
+      }
+      socket.emit('settings', roomSettings);
+
+      // Create Paperjs instance for this room if it doesn't exist
+      var project = projects.projects[room];
+      if (!project) {
+        console.log('Made room %s', room);
+        projects.projects[room] = {};
+        // Use the view from the default project. This project is the default
+        // one created when paper is instantiated. Nothing is ever written to
+        // this project as each room has its own project. We share the View
+        // object but that just helps it "draw" stuff to the invisible server
+        // canvas.
+        projects.projects[room].project = new paper.Project();
+        projects.projects[room].external_paths = {};
+        db.load(room, socket);
+      } else { // Project exists in memory, no need to load from database
+        loadFromMemory(room, socket);
+      }
+
+      // Broadcast to room the new user count -- currently broken
+      var rooms = socket.adapter.rooms[room]; 
+      var roomUserCount = Object.keys(rooms).length;
+      io.to(room).emit('user:connect', roomUserCount);
     });
 
     // User tries to authenticate
-    socket.on('user:authenticate:edit', function(room, uid, password) {
+    socket.on('user:authenticate:edit', function(room, uid, authentication) {
       if (settings.editPassword) {
         var roomPassword;
         if (typeof settings.editPassword === 'string') {
@@ -243,14 +328,25 @@ db.init(function(err) {
         }
 
         if (roomPassword) {
-          if (roomPassword !== password) {
-            socket.emit('user:authenticate:edit', 'Incorrect password.');
-            return;
-          } else {
-            socket.emit('user:authenticate:edit', null, true);
-            authorized = true;
+          // Check if using a token
+          if (authentication.token && checkToken(authentication.token)) {
+            token = authentication.token;
+            socket.emit('user:authenticate:edit', null, token);
             return;
           }
+
+          if (authentication.password) {
+            if (roomPassword !== authentication.password) {
+              socket.emit('user:authenticate:edit', 'Incorrect password.');
+              return;
+            } else {
+              token = createToken();
+              socket.emit('user:authenticate:edit', null, token);
+              return;
+            }
+          }
+
+          socket.emit('user:authenticate:edit', null);
         }
       }
 
@@ -263,8 +359,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       draw.clearCanvas(room);
@@ -273,8 +369,8 @@ db.init(function(err) {
 
     // User removes an item
     socket.on('item:remove', function(room, uid, itemName) {
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       draw.removeItem(room, uid, itemName);
@@ -283,8 +379,8 @@ db.init(function(err) {
 
     // User moves one or more items on their canvas - progress
     socket.on('item:move:progress', function(room, uid, itemNames, delta) {
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       draw.moveItemsProgress(room, uid, itemNames, delta);
@@ -295,8 +391,8 @@ db.init(function(err) {
 
     // User moves one or more items on their canvas - end
     socket.on('item:move:end', function(room, uid, itemNames, delta) {
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       draw.moveItemsEnd(room, uid, itemNames, delta);
@@ -307,8 +403,8 @@ db.init(function(err) {
 
     // User adds a raster image
     socket.on('image:add', function(room, uid, data, position, name) {
-      if (requireAuthentication(room) && !authorized) {
-        editError(socket);
+      if (requireAuthentication(room) && !checkToken(token)) {
+        authenticationError(socket);
         return;
       }
       draw.addImage(room, uid, data, position, name);
@@ -317,49 +413,6 @@ db.init(function(err) {
 
   });
 });
-
-// Subscribe a client to a room
-function subscribe(socket, data) {
-  var room = data.room;
-
-  // Subscribe the client to the room
-  socket.join(room);
-
-  // If there is a remove timeout activate, remove it
-  if (removeTimeouts[room]) {
-    clearTimeout(removeTimeouts[room]);
-    delete removeTimeouts[room];
-  }
-
-  if (typeof settings.editPassword === 'object') {
-    clientSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
-  }
-  socket.emit('settings', clientSettings);
-
-  // Create Paperjs instance for this room if it doesn't exist
-  var project = projects.projects[room];
-  if (!project) {
-    console.log('Made room %s', room);
-    projects.projects[room] = {};
-    // Use the view from the default project. This project is the default
-    // one created when paper is instantiated. Nothing is ever written to
-    // this project as each room has its own project. We share the View
-    // object but that just helps it "draw" stuff to the invisible server
-    // canvas.
-    projects.projects[room].project = new paper.Project();
-    projects.projects[room].external_paths = {};
-    db.load(room, socket);
-  } else { // Project exists in memory, no need to load from database
-    loadFromMemory(room, socket);
-  }
-
-  // Broadcast to room the new user count -- currently broken
-  var rooms = socket.adapter.rooms[room]; 
-  var roomUserCount = Object.keys(rooms).length;
-  io.to(room).emit('user:connect', roomUserCount);
-
-  return room;
-}
 
 /**
  * Removes a room from the database
@@ -408,8 +461,8 @@ function loadError(socket) {
   socket.emit('project:load:error');
 }
 
-function editError(socket) {
-  socket.emit('project:edit:error');
+function authenticationError(socket) {
+  socket.emit('user:authenticate:edit', 'Session expired. Please login again.');
 }
 
 function requireAuthentication(room) {
@@ -422,4 +475,52 @@ function requireAuthentication(room) {
   }
 
   return false;
+}
+
+var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+var string_length = 10;
+
+function createToken(room) {
+  var token, tries = 5;
+
+  do {
+    tries--;
+    token = '';
+
+    for (var i = 0; i < string_length; i++) {
+        var rnum = Math.floor(Math.random() * chars.length);
+        token += chars.substring(rnum, rnum + 1);
+    }
+  } while (tokens[token] && tries > 0);
+
+  if (!tries) {
+    throw new Error('Couldn\'t generate token');
+  }
+
+  tokens[token] = {
+    created: new Date(),
+    lastUsed: new Date(),
+    room: room || null
+  };
+
+  return token;
+}
+
+function checkToken(token) {
+  if (tokens[token]) {
+    tokens[token].lastUsed = new Date();
+    return true;
+  }
+
+  return false;
+}
+
+function removeOldTokens() {
+  var cutOff = (new Date()).getTime() - (settings.authenticationTimeout * 1000);
+
+  Object.keys(tokens).forEach(function(token) {
+    if (tokens[token].lastUsed.getTime() < cutOff) {
+      delete tokens[token];
+    }
+  });
 }

@@ -14,6 +14,7 @@ exports.defaults = {
   "port" : 3000,
   "removeUnused": undefined,
   "editPassword": undefined,
+  "authenticationTimeout": undefined,
   //The Type of the database. You can choose between dirty, postgres, sqlite and mysql
   //You shouldn't use "dirty" for for anything else than testing or development
   "dbType" : "dirty",

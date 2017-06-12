@@ -48,7 +48,7 @@ function promptForPassword() {
   $('#userSettings').fadeIn();
 }
 
-function checkPassword() {
+function checkPassword(event) {
   if (!protection || authorized) {
     $('#userSettings').hide();
   } else {
@@ -60,9 +60,12 @@ function checkPassword() {
       $('#passwordError').text('Please enter a password.');
     } else {
       // Send password to be verified
-      socket.emit('user:authenticate:edit', room, uid, password);
+      socket.emit('user:authenticate:edit', room, uid, {
+        password: password
+      });
     }
   }
+  event.preventDefault();
 }
 
 /**
@@ -668,8 +671,11 @@ function moveBelowTextboxes(path) {
 ///}} Textbox-specific stuff
 
 // Join the room
+var token = localStorage.getItem('edit');
+
 socket.emit('subscribe', {
-  room: room
+  room: room,
+  token: token
 });
 
 // JSON data ofthe users current drawing
@@ -1062,6 +1068,7 @@ function onMouseUp(event) {
     clearInterval(send_paths_timer);
     path_to_send.path = new Array();
     timer_is_active = false;
+    path = null;
   } else if (activeTool == "text") {
     // @TODO Check if a text box was clicked on, if so edit it
      if (!textboxClosed) {
@@ -1492,12 +1499,23 @@ socket.on('user:disconnect', function(user_count) {
 
 socket.on('user:authenticate:edit', function(error, token) {
   if (error) {
+    authorized = false;
+    localStorage.removeItem('edit');
+    $('#userSettings').show();
     $('#passwordError').text(error);
+    
+    // Delete current path if one
+    if (path) {
+      path.remove();
+      path = null
+    }
   } else {
     $('#password').val('');
     $('#passwordError').text('');
     authorized = true;
     $('#userSettings').hide();
+
+    localStorage.setItem('edit', token);
 
     if (newTool) {
       changeActiveTool(newTool);
@@ -1654,27 +1672,25 @@ progress_external_path = function(points, artist) {
  */
 function enableProtection() {
   protection = true;
-  changeActiveTool('cursor', true);
 }
 
 function processSettings(settings) {
+  // Handle tool changes
+  if (settings['tool']) {
+    $('.buttonicon-' + settings['tool']).click();
+  }
 
-  $.each(settings, function(k, v) {
+  // Add edit protection
+  if (settings['protectedEdit']) {
+    enableProtection();
 
-    // Handle tool changes
-    if (k === "tool") {
-      $('.buttonicon-' + v).click();
+    // Authorize
+    if (settings['authenticated']) {
+      authorized = true;
+    } else {
+      changeActiveTool('cursor', true);
     }
-
-    // Add edit protection
-    if (k === "protectedEdit") {
-      if (v) {
-        enableProtection();
-      }
-    }
-
-  })
-
+  }
 }
 
 // Periodically save drawing
