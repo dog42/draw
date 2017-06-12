@@ -1537,8 +1537,10 @@ socket.on('user:authenticate:edit', function(error, token) {
 
 socket.on('project:load', function(json) {
   console.log("project:load", json);
-  paper.project.activeLayer.remove();
-  paper.project.importJSON(json.project);
+  if (json.project && json.project !== '[]') {
+    paper.project.activeLayer.remove();
+    paper.project.importJSON(json.project);
+  }
 
   // Make color selector draggable
   $('#mycolorpicker').pep({});
