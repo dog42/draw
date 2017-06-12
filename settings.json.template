@@ -17,6 +17,10 @@
   // "editPassword": {
   //  "protected": "protectedpassword"
   // },
+  // Uncomment to add a timeout on authentication tokens. Value can either be
+  // just a number (for the number of seconds), or a number and a unit
+  // (min, hr, or day)
+  // "authenticationTimeout": "1day",
 
   //The Type of the database. You can choose between dirty, postgres, sqlite and mysql
   //You shouldn't use "dirty" for for anything else than testing or development
