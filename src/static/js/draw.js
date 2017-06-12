@@ -18,7 +18,15 @@ function pickColor(color) {
 
 function isAuthorized() {
   if (protection && !authorized) {
-    promptForPassword();
+    var token;
+    if (token = localStorage.getItem('edit')) {
+      socket.emit('user:authenticate:edit', room, uid, {
+        token: token
+      });
+    } else {
+      promptForPassword();
+    }
+
     return false;
   }
 
@@ -61,7 +69,8 @@ function checkPassword(event) {
     } else {
       // Send password to be verified
       socket.emit('user:authenticate:edit', room, uid, {
-        password: password
+        password: password,
+        token: localStorage.getItem('edit')
       });
     }
   }
@@ -671,11 +680,9 @@ function moveBelowTextboxes(path) {
 ///}} Textbox-specific stuff
 
 // Join the room
-var token = localStorage.getItem('edit');
-
 socket.emit('subscribe', {
   room: room,
-  token: token
+  token: localStorage.getItem('edit')
 });
 
 // JSON data ofthe users current drawing
@@ -1500,10 +1507,14 @@ socket.on('user:disconnect', function(user_count) {
 socket.on('user:authenticate:edit', function(error, token) {
   if (error) {
     authorized = false;
-    localStorage.removeItem('edit');
+    if (!token) {
+      localStorage.removeItem('edit');
+    }
     $('#userSettings').show();
-    $('#passwordError').text(error);
-    
+    if (typeof error === 'string') {
+      $('#passwordError').text(error);
+    }
+
     // Delete current path if one
     if (path) {
       path.remove();
@@ -1525,7 +1536,7 @@ socket.on('user:authenticate:edit', function(error, token) {
 });
 
 socket.on('project:load', function(json) {
-  console.log("project:load");
+  console.log("project:load", json);
   paper.project.activeLayer.remove();
   paper.project.importJSON(json.project);
 
@@ -1689,6 +1700,10 @@ function processSettings(settings) {
       authorized = true;
     } else {
       changeActiveTool('cursor', true);
+    }
+
+    if (!settings['token']) {
+      localStorage.removeItem('edit');
     }
   }
 }

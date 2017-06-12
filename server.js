@@ -88,7 +88,7 @@ app.configure('development', function(){
 
     console.log('Users will be logged out after %s seconds', settings.removeUnused);
     // Check for an remove old tokens every minute
-    setInterval(removeOldTokens, 60000);
+    setInterval(removeOldTokens, 30000);
   }
 });
 
@@ -230,8 +230,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       io.in(room).emit('draw:progress', uid, co_ordinates);
@@ -245,8 +245,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       io.in(room).emit('draw:end', uid, co_ordinates);
@@ -259,8 +259,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       io.in(room).emit('draw:textbox', uid, textbox);
@@ -287,10 +287,13 @@ db.init(function(err) {
       }
 
       // Check authentication token
-      if (data.token && tokens[data.token] && (typeof settings.editPassword !== 'object'
-            || tokens[data.token].rooms.indexOf(room) !== -1)) {
-        roomSettings.authenticated = true;
+      if (data.token && tokens[data.token]) {
         token = data.token;
+        roomSettings.token = true;
+        if (typeof settings.editPassword !== 'object'
+          || tokens[data.token].rooms.indexOf(room) !== -1) {
+          roomSettings.authenticated = true;
+        }
       }
       socket.emit('settings', roomSettings);
 
@@ -328,29 +331,38 @@ db.init(function(err) {
         }
 
         if (roomPassword) {
-          // Check if using a token
-          if (authentication.token && checkToken(authentication.token)) {
-            token = authentication.token;
-            socket.emit('user:authenticate:edit', null, token);
-            return;
-          }
-
           if (authentication.password) {
             if (roomPassword !== authentication.password) {
-              socket.emit('user:authenticate:edit', 'Incorrect password.');
+              socket.emit('user:authenticate:edit', 'Incorrect password.',
+                (authentication.token && typeof tokens[authentication.token] !== 'undefined'));
               return;
             } else {
-              token = createToken();
+              if (authentication.token && tokens[authentication.token]) {
+                token = authentication.token;
+                if (tokens[token].rooms.indexOf(room) === -1) {
+                  tokens[token].rooms.push(room);
+                }
+              } else {
+                token = createToken(room);
+              }
               socket.emit('user:authenticate:edit', null, token);
               return;
             }
+          } else if (authentication.token) {
+            if (checkToken(authentication.token, room)) {
+              token = authentication.token;
+              socket.emit('user:authenticate:edit', null, token);
+            } else {
+              socket.emit('user:authenticate:edit', true, true);
+            }
+            return;
           }
 
           socket.emit('user:authenticate:edit', null);
         }
       }
 
-      socket.emit('user:authenticate:edit', null, true);
+      socket.emit('user:authenticate:edit', null);
     });
 
     // User clears canvas
@@ -359,8 +371,8 @@ db.init(function(err) {
         loadError(socket);
         return;
       }
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       draw.clearCanvas(room);
@@ -369,8 +381,8 @@ db.init(function(err) {
 
     // User removes an item
     socket.on('item:remove', function(room, uid, itemName) {
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       draw.removeItem(room, uid, itemName);
@@ -379,8 +391,8 @@ db.init(function(err) {
 
     // User moves one or more items on their canvas - progress
     socket.on('item:move:progress', function(room, uid, itemNames, delta) {
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       draw.moveItemsProgress(room, uid, itemNames, delta);
@@ -391,8 +403,8 @@ db.init(function(err) {
 
     // User moves one or more items on their canvas - end
     socket.on('item:move:end', function(room, uid, itemNames, delta) {
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       draw.moveItemsEnd(room, uid, itemNames, delta);
@@ -403,8 +415,8 @@ db.init(function(err) {
 
     // User adds a raster image
     socket.on('image:add', function(room, uid, data, position, name) {
-      if (requireAuthentication(room) && !checkToken(token)) {
-        authenticationError(socket);
+      if (requireAuthentication(room) && !checkToken(token, room)) {
+        authenticationError(socket, token);
         return;
       }
       draw.addImage(room, uid, data, position, name);
@@ -461,8 +473,9 @@ function loadError(socket) {
   socket.emit('project:load:error');
 }
 
-function authenticationError(socket) {
-  socket.emit('user:authenticate:edit', 'Session expired. Please login again.');
+function authenticationError(socket, token) {
+  socket.emit('user:authenticate:edit', 'Session expired. Please login again.',
+      true);
 }
 
 function requireAuthentication(room) {
@@ -500,14 +513,15 @@ function createToken(room) {
   tokens[token] = {
     created: new Date(),
     lastUsed: new Date(),
-    room: room || null
+    rooms: [room] || null
   };
 
   return token;
 }
 
-function checkToken(token) {
-  if (tokens[token]) {
+function checkToken(token, room) {
+  if (tokens[token] && (typeof settings.editPassword === 'string'
+      || tokens[token].rooms.indexOf(room) !== -1)) {
     tokens[token].lastUsed = new Date();
     return true;
   }
