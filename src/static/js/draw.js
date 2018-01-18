@@ -9,6 +9,8 @@ var protection = false;
 var authorized = false;
 var newTool = null;
 
+var writeTools = ['#clearCanvas', '#pencilTool','#drawTool', '#selectTool', '#textTool', '#uploadImage' ];
+
 function pickColor(color) {
   $('#color').val(color);
   var rgb = hexToRgb(color);
@@ -1524,6 +1526,9 @@ socket.on('user:authenticate:edit', function(error, token) {
     $('#password').val('');
     $('#passwordError').text('');
     authorized = true;
+    writeTools.forEach(function (id) {
+      $(id).removeClass('locked');
+    });
     $('#userSettings').hide();
 
     localStorage.setItem('edit', token);
@@ -1685,6 +1690,10 @@ progress_external_path = function(points, artist) {
  */
 function enableProtection() {
   protection = true;
+
+  writeTools.forEach(function (id) {
+    $(id).addClass('locked');
+  });
 }
 
 function processSettings(settings) {

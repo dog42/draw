@@ -106,6 +106,10 @@ body {
   margin-left: -2px;
   border-left: 0;
 }
+.toolbar ul li.locked span {
+  opacity: 0.2;
+  filter: alpha(opacity=20);
+}
 #usericon a {
   min-width: 30px;
   text-align: left;
