@@ -4,6 +4,7 @@ tool.minDistance = 10;
 tool.maxDistance = 45;
 
 var room = /.*\/([^?]+)/.exec(window.location.pathname)[1];
+var roomSettings = {};
 
 var protection = false;
 var authorized = false;
@@ -684,7 +685,7 @@ function moveBelowTextboxes(path) {
 // Join the room
 socket.emit('subscribe', {
   room: room,
-  token: localStorage.getItem('edit')
+  token: localStorage.getItem('roomEdit' + room) || localStorage.getItem('edit')
 });
 
 // JSON data ofthe users current drawing
@@ -1510,7 +1511,11 @@ socket.on('user:authenticate:edit', function(error, token) {
   if (error) {
     authorized = false;
     if (!token) {
-      localStorage.removeItem('edit');
+      if (roomSettings['roomProtectedEdit']) {
+        localStorage.removeItem('roomEdit' + room);
+      } else {
+        localStorage.removeItem('edit');
+      }
     }
     $('#userSettings').show();
     if (typeof error === 'string') {
@@ -1531,7 +1536,11 @@ socket.on('user:authenticate:edit', function(error, token) {
     });
     $('#userSettings').hide();
 
-    localStorage.setItem('edit', token);
+    if (roomSettings['roomProtectedEdit']) {
+      localStorage.setItem('roomEdit' + room, token);
+    } else {
+      localStorage.setItem('edit', token);
+    }
 
     if (newTool) {
       changeActiveTool(newTool);
@@ -1690,20 +1699,18 @@ progress_external_path = function(points, artist) {
  */
 function enableProtection() {
   protection = true;
-
-  writeTools.forEach(function (id) {
-    $(id).addClass('locked');
-  });
 }
 
 function processSettings(settings) {
+  roomSettings = settings;
+
   // Handle tool changes
   if (settings['tool']) {
     $('.buttonicon-' + settings['tool']).click();
   }
 
   // Add edit protection
-  if (settings['protectedEdit']) {
+  if (settings['protectedEdit'] || settings['roomProtectedEdit']) {
     enableProtection();
 
     // Authorize
@@ -1711,10 +1718,17 @@ function processSettings(settings) {
       authorized = true;
     } else {
       changeActiveTool('cursor', true);
+
+      writeTools.forEach(function (id) {
+        $(id).addClass('locked');
+      });
     }
 
     if (!settings['token']) {
-      localStorage.removeItem('edit');
+        localStorage.removeItem('roomEdit' + room);
+      if (settings['protectedEdit']) {
+        localStorage.removeItem('edit');
+      }
     }
   }
 }

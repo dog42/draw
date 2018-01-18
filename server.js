@@ -283,7 +283,7 @@ db.init(function(err) {
       var roomSettings = Object.assign({}, clientSettings);
 
       if (typeof settings.editPassword === 'object') {
-        roomSettings.protectedEdit = (typeof settings.editPassword[room] !== 'undefined');
+        roomSettings.roomProtectedEdit = (typeof settings.editPassword[room] !== 'undefined');
       }
 
       // Check authentication token
