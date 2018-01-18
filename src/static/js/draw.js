@@ -4,12 +4,80 @@ tool.minDistance = 10;
 tool.maxDistance = 45;
 
 var room = /.*\/([^?]+)/.exec(window.location.pathname)[1];
+var roomSettings = {};
+
+var protection = false;
+var authorized = false;
+var newTool = null;
+
+var writeTools = ['#clearCanvas', '#pencilTool','#drawTool', '#selectTool', '#textTool', '#uploadImage' ];
 
 function pickColor(color) {
   $('#color').val(color);
   var rgb = hexToRgb(color);
   $('#activeColorSwatch').css('background-color', 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')');
   update_active_color();
+}
+
+function isAuthorized() {
+  if (protection && !authorized) {
+    var token;
+    if (token = localStorage.getItem('edit')) {
+      socket.emit('user:authenticate:edit', room, uid, {
+        token: token
+      });
+    } else {
+      promptForPassword();
+    }
+
+    return false;
+  }
+
+  return true;
+}
+
+function changeActiveTool(tool, notProtectedTool) {
+  if (!notProtectedTool && !isAuthorized()) {
+    newTool = tool;
+    return;
+  }
+
+  if (tool) {
+    $('#editbar > ul > li > a').css({
+      background: ""
+    }); // remove the backgrounds from other buttons
+    $('#' + tool + 'Tool > a').css({
+      background: "#eee"
+    }); // set the selecttool css to show it as active
+    activeTool = tool;
+  }
+
+  return true;
+}
+
+function promptForPassword() {
+  $('#userSettings').fadeIn();
+}
+
+function checkPassword(event) {
+  if (!protection || authorized) {
+    $('#userSettings').hide();
+  } else {
+    $('#passwordError').text('');
+    // Get password
+    var password = $('#password').val();
+
+    if (!password) {
+      $('#passwordError').text('Please enter a password.');
+    } else {
+      // Send password to be verified
+      socket.emit('user:authenticate:edit', room, uid, {
+        password: password,
+        token: localStorage.getItem('edit')
+      });
+    }
+  }
+  event.preventDefault();
 }
 
 /**
@@ -616,7 +684,8 @@ function moveBelowTextboxes(path) {
 
 // Join the room
 socket.emit('subscribe', {
-  room: room
+  room: room,
+  token: localStorage.getItem('roomEdit' + room) || localStorage.getItem('edit')
 });
 
 // JSON data ofthe users current drawing
@@ -673,10 +742,12 @@ $('#colorToggle').on('click', function() {
 });
 
 $('#clearImage').click(function() {
-  var p = confirm("Are you sure you want to clear the drawing for everyone?");
-  if (p) {
-    clearCanvas();
-    socket.emit('canvas:clear', room);
+  if (isAuthorized()) {
+    var p = confirm("Are you sure you want to clear the drawing for everyone?");
+    if (p) {
+      clearCanvas();
+      socket.emit('canvas:clear', room);
+    }
   }
 });
 
@@ -736,6 +807,7 @@ function onMouseDown(event) {
   // Will also handle scaling using pinch gestures
   if (event.event.button == 1 
       || (event.event.button == 0 && event.event.ctrlKey)
+      || (event.event.button == 0 && activeTool == 'cursor')
       || (event.event.touches && event.event.touches.length == 2)) {
     previousPoint = getEventPoint(event.event, 'client');
     var canvas = $('#myCanvas');
@@ -844,6 +916,7 @@ function onMouseDrag(event) {
    */
   if (event.event.button == 1 
       || (event.event.button == 0 && event.event.ctrlKey)
+      || (event.event.button == 0 && activeTool == 'cursor')
       || (event.event.touches && event.event.touches.length == 2)) {
     // Calculate our own delta as the event delta is relative to the canvas
     var point = getEventPoint(event.event, 'client');
@@ -977,6 +1050,11 @@ function onMouseUp(event) {
     $('#myCanvas').css('cursor', 'pointer');
     return;
   }
+  
+  if (event.event.button == 0 && activeTool == 'cursor') {
+    $('#myCanvas').css('cursor', 'default');
+    return;
+  }
 
   clearInterval(mouseHeld);
   mouseHeld = undefined;
@@ -1000,6 +1078,7 @@ function onMouseUp(event) {
     clearInterval(send_paths_timer);
     path_to_send.path = new Array();
     timer_is_active = false;
+    path = null;
   } else if (activeTool == "text") {
     // @TODO Check if a text box was clicked on, if so edit it
      if (!textboxClosed) {
@@ -1217,8 +1296,10 @@ $('#usericon').on('click', function() {
   $('#mycolorpicker').fadeToggle();
 });
 $('#clearCanvas').on('click', function() {
-  clearCanvas();
-  socket.emit('canvas:clear', room);
+  if (isAuthorized()) {
+    clearCanvas();
+    socket.emit('canvas:clear', room);
+  }
 });
 $('#exportSVG').on('click', function() {
   exportSVG();
@@ -1227,47 +1308,34 @@ $('#exportPNG').on('click', function() {
   exportPNG();
 });
 
+$('#cursorTool').on('click', function() {
+  if (changeActiveTool('cursor', true)) {
+    $('#myCanvas').css('cursor', 'default');
+    paper.project.activeLayer.selected = false;
+  }
+});
 $('#pencilTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#pencilTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "pencil";
-  $('#myCanvas').css('cursor', 'pointer');
-  paper.project.activeLayer.selected = false;
+  if (changeActiveTool('pencil')) {
+    $('#myCanvas').css('cursor', 'pointer');
+    paper.project.activeLayer.selected = false;
+  }
 });
 $('#drawTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#drawTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "draw";
-  $('#myCanvas').css('cursor', 'pointer');
-  paper.project.activeLayer.selected = false;
+  if (changeActiveTool('draw')) {
+    $('#myCanvas').css('cursor', 'pointer');
+    paper.project.activeLayer.selected = false;
+  }
 });
 $('#selectTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#selectTool > a').css({
-    background: "#eee"
-  }); // set the selecttool css to show it as active
-  activeTool = "select";
-  $('#myCanvas').css('cursor', 'default');
+  if (changeActiveTool('select')) {
+    $('#myCanvas').css('cursor', 'default');
+  }
 });
 $('#textTool').on('click', function() {
-  $('#editbar > ul > li > a').css({
-    background: ""
-  }); // remove the backgrounds from other buttons
-  $('#textTool > a').css({
-    background: "#eee"
-  }); // set the texttool css to show it as active
-  activeTool = "text";
-  $('#myCanvas').css('cursor', 'crosshair');
+  if (changeActiveTool('text')) {
+    $('#myCanvas').css('cursor', 'crosshair');
+    paper.project.activeLayer.selected = false;
+  }
 });
 
 $('#zeroTool').on('click', function() {
@@ -1285,8 +1353,12 @@ $('#fitTool').on('click', function() {
 });
 
 $('#uploadImage').on('click', function() {
-  $('#imageInput').click();
+  if (isAuthorized()) {
+    $('#imageInput').click();
+  }
 });
+
+$('#submitPassword').on('click', checkPassword);
 
 function clearCanvas() {
   // Remove all but the active layer
@@ -1435,10 +1507,54 @@ socket.on('user:disconnect', function(user_count) {
   update_user_count(user_count);
 });
 
+socket.on('user:authenticate:edit', function(error, token) {
+  if (error) {
+    authorized = false;
+    if (!token) {
+      if (roomSettings['roomProtectedEdit']) {
+        localStorage.removeItem('roomEdit' + room);
+      } else {
+        localStorage.removeItem('edit');
+      }
+    }
+    $('#userSettings').show();
+    if (typeof error === 'string') {
+      $('#passwordError').text(error);
+    }
+
+    // Delete current path if one
+    if (path) {
+      path.remove();
+      path = null
+    }
+  } else {
+    $('#password').val('');
+    $('#passwordError').text('');
+    authorized = true;
+    writeTools.forEach(function (id) {
+      $(id).removeClass('locked');
+    });
+    $('#userSettings').hide();
+
+    if (roomSettings['roomProtectedEdit']) {
+      localStorage.setItem('roomEdit' + room, token);
+    } else {
+      localStorage.setItem('edit', token);
+    }
+
+    if (newTool) {
+      changeActiveTool(newTool);
+      newTool = null;
+    }
+  }
+});
+
 socket.on('project:load', function(json) {
-  console.log("project:load");
-  paper.project.activeLayer.remove();
-  paper.project.importJSON(json.project);
+  console.log("project:load", json);
+  if (json.project && json.project !== '[]') {
+    paper.project.activeLayer.remove();
+    paper.project.importJSON(json.project);
+  }
 
   // Make color selector draggable
   $('#mycolorpicker').pep({});
@@ -1578,23 +1694,49 @@ progress_external_path = function(points, artist) {
 
 };
 
+/**
+ * Check if we are authenticated to make edits, if not
+ */
+function enableProtection() {
+  protection = true;
+}
+
 function processSettings(settings) {
+  roomSettings = settings;
 
-  $.each(settings, function(k, v) {
+  // Handle tool changes
+  if (settings['tool']) {
+    $('.buttonicon-' + settings['tool']).click();
+  }
 
-    // Handle tool changes
-    if (k === "tool") {
-      $('.buttonicon-' + v).click();
+  // Add edit protection
+  if (settings['protectedEdit'] || settings['roomProtectedEdit']) {
+    enableProtection();
+
+    // Authorize
+    if (settings['authenticated']) {
+      authorized = true;
+    } else {
+      changeActiveTool('cursor', true);
+
+      writeTools.forEach(function (id) {
+        $(id).addClass('locked');
+      });
     }
 
-  })
-
+    if (!settings['token']) {
+        localStorage.removeItem('roomEdit' + room);
+      if (settings['protectedEdit']) {
+        localStorage.removeItem('edit');
+      }
+    }
+  }
 }
 
 // Periodically save drawing
 setInterval(function(){
   saveDrawing();
-}, 1000);
+}, 10000);
 
 function saveDrawing(){
   var canvas = document.getElementById('myCanvas');

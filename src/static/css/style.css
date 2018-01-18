@@ -106,6 +106,10 @@ body {
   margin-left: -2px;
   border-left: 0;
 }
+.toolbar ul li.locked span {
+  opacity: 0.2;
+  filter: alpha(opacity=20);
+}
 #usericon a {
   min-width: 30px;
   text-align: left;
@@ -229,6 +233,9 @@ body {
   display: inline-block;
   vertical-align: middle;
 }
+.buttonicon-cursor {
+  background-image: url('../../static/img/mouse-pointer.png');
+}
 .buttonicon-draw {
   background-image: url('../../static/img/brush.png');
 }
@@ -325,6 +332,7 @@ input[type=checkbox] {
 #importexport,
 #embed,
 #connectivity,
+#userSettings,
 #users {
   position: absolute;
   top: 36px;
