@@ -1331,6 +1331,12 @@ $('#selectTool').on('click', function() {
     $('#myCanvas').css('cursor', 'default');
   }
 });
+$('#removeTool').on('click', function() {
+  var items = paper.project.selectedItems;
+  if (items) {
+    deleteItems(items);
+  }
+});
 $('#textTool').on('click', function() {
   if (changeActiveTool('text')) {
     $('#myCanvas').css('cursor', 'crosshair');
